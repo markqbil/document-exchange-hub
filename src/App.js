@@ -1,12 +1,5 @@
 import React, { useState } from 'react';
 import './App.css';
-import { 
-  Search, Send, Mail, Package, Users, Settings, Building2, 
-  FileText, CheckCircle2, XCircle, AlertCircle, ChevronRight,
-  Filter, Download, Eye, Clock, ArrowRight, Link, Shield,
-  Bell, Inbox, MapPin, Brain, TrendingUp, User, UserCheck,
-  CheckSquare, Square, MoreVertical, Edit, Trash2, Plus
-} from 'lucide-react';
 
 // Import components
 import Dashboard from './components/Dashboard';
@@ -116,15 +109,19 @@ function App() {
   };
 
   return (
-    <div className="min-h-screen bg-gray-100">
-      <Navigation {...appState} />
-      
-      {currentView === 'dashboard' && <Dashboard {...appState} />}
-      {currentView === 'inbox' && <HubInbox {...appState} />}
-      {currentView === 'send' && <SendDocument {...appState} />}
-      {currentView === 'partners' && isAdmin && <TradingPartners {...appState} />}
-      {currentView === 'mappings' && isAdmin && <MappingTables {...appState} />}
-      
+    <div className="h-screen overflow-hidden">
+      <Navigation {...appState}>
+        <div className="flex-1 overflow-auto bg-gray-50">
+          <div className="p-6">
+            {currentView === 'dashboard' && <Dashboard {...appState} />}
+            {currentView === 'inbox' && <HubInbox {...appState} />}
+            {currentView === 'send' && <SendDocument {...appState} />}
+            {currentView === 'partners' && isAdmin && <TradingPartners {...appState} />}
+            {currentView === 'mappings' && isAdmin && <MappingTables {...appState} />}
+          </div>
+        </div>
+      </Navigation>
+
       {showConnectionModal && <ConnectionModal {...appState} />}
       {showSendModal && <SendViaHubModal {...appState} />}
       {showProcessModal && <ProcessDocumentModal {...appState} />}

@@ -64,9 +64,8 @@ function HubInbox({
   };
 
   return (
-    <div className="max-w-7xl mx-auto px-4 py-8">
+    <div>
       <div className="mb-6">
-        <h1 className="text-3xl font-bold text-gray-900 mb-2">Hub Inbox</h1>
         <p className="text-gray-600">Receive and process documents from your trading partners</p>
       </div>
 

@@ -5,7 +5,9 @@
       "Bash(find:*)",
       "Bash(npm run build:*)",
       "Bash(npm start)",
-      "Bash(timeout /t 15)"
+      "Bash(timeout /t 15)",
+      "Bash(ping:*)",
+      "Bash(git add:*)"
     ],
     "deny": [],
     "ask": []
