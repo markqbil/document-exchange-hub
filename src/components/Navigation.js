@@ -1,7 +1,7 @@
-import React from 'react';
+import React, { useState } from 'react';
 import {
-  Package, Bell, Inbox, Send, Users, Table2, LayoutDashboard,
-  ChevronDown, User, Settings, Menu
+  Package, Bell, Inbox, Table2, ChevronDown, ChevronRight,
+  User, Settings, Menu
 } from 'lucide-react';
 
 const Navigation = ({
@@ -10,6 +10,15 @@ const Navigation = ({
   notifications,
   children
 }) => {
+  const [isQbilHubExpanded, setIsQbilHubExpanded] = useState(true);
+
+  const handleQbilHubClick = () => {
+    setIsQbilHubExpanded(!isQbilHubExpanded);
+    if (!isQbilHubExpanded) {
+      setCurrentView('dashboard');
+    }
+  };
+
   return (
     <div className="flex h-screen">
       {/* Sidebar */}
@@ -28,82 +37,78 @@ const Navigation = ({
         {/* Navigation Menu */}
         <nav className="flex-1 py-4 overflow-y-auto">
           <div className="space-y-1 px-2">
+            {/* Qbil Hub - Main Menu Item */}
             <button
-              onClick={() => setCurrentView('dashboard')}
-              className={`w-full flex items-center space-x-3 px-4 py-3 rounded-lg transition-colors ${
-                currentView === 'dashboard'
-                  ? 'bg-qbil-blue text-white'
-                  : 'text-gray-300 hover:bg-sidebar-light'
-              }`}
-            >
-              <LayoutDashboard className="h-5 w-5" />
-              <span className="font-medium">Dashboard</span>
-            </button>
-
-            <button
-              onClick={() => setCurrentView('inbox')}
+              onClick={handleQbilHubClick}
               className={`w-full flex items-center justify-between px-4 py-3 rounded-lg transition-colors ${
-                currentView === 'inbox'
+                currentView === 'dashboard' || currentView === 'inbox' || currentView === 'mappings'
                   ? 'bg-qbil-blue text-white'
                   : 'text-gray-300 hover:bg-sidebar-light'
               }`}
             >
               <div className="flex items-center space-x-3">
-                <Inbox className="h-5 w-5" />
-                <span className="font-medium">Hub Inbox</span>
+                <Package className="h-5 w-5" />
+                <span className="font-medium">Qbil Hub</span>
               </div>
-              {notifications > 0 && (
-                <span className="bg-red-500 text-white text-xs px-2 py-1 rounded-full font-semibold">
-                  {notifications}
-                </span>
-              )}
+              <div className="flex items-center space-x-2">
+                {notifications > 0 && (
+                  <span className="bg-red-500 text-white text-xs px-2 py-1 rounded-full font-semibold">
+                    {notifications}
+                  </span>
+                )}
+                {isQbilHubExpanded ? (
+                  <ChevronDown className="h-4 w-4" />
+                ) : (
+                  <ChevronRight className="h-4 w-4" />
+                )}
+              </div>
             </button>
 
-            <button
-              onClick={() => setCurrentView('send')}
-              className={`w-full flex items-center space-x-3 px-4 py-3 rounded-lg transition-colors ${
-                currentView === 'send'
-                  ? 'bg-qbil-blue text-white'
-                  : 'text-gray-300 hover:bg-sidebar-light'
-              }`}
-            >
-              <Send className="h-5 w-5" />
-              <span className="font-medium">Send Document</span>
-            </button>
-
-            {/* Admin Section */}
-            {isAdmin && (
-              <>
-                <div className="pt-4 pb-2 px-4">
-                  <div className="text-xs font-semibold text-gray-500 uppercase tracking-wider">
-                    Administration
-                  </div>
-                </div>
-
+            {/* Submenu Items - Only show when expanded */}
+            {isQbilHubExpanded && (
+              <div className="ml-4 space-y-1">
                 <button
-                  onClick={() => setCurrentView('partners')}
-                  className={`w-full flex items-center space-x-3 px-4 py-3 rounded-lg transition-colors ${
-                    currentView === 'partners'
-                      ? 'bg-qbil-blue text-white'
+                  onClick={() => setCurrentView('dashboard')}
+                  className={`w-full flex items-center space-x-3 px-4 py-2 rounded-lg transition-colors text-sm ${
+                    currentView === 'dashboard'
+                      ? 'bg-sidebar-light text-white'
                       : 'text-gray-300 hover:bg-sidebar-light'
                   }`}
                 >
-                  <Users className="h-5 w-5" />
-                  <span className="font-medium">Trading Partners</span>
+                  <span className="font-medium">Dashboard</span>
+                </button>
+
+                <button
+                  onClick={() => setCurrentView('inbox')}
+                  className={`w-full flex items-center justify-between px-4 py-2 rounded-lg transition-colors text-sm ${
+                    currentView === 'inbox'
+                      ? 'bg-sidebar-light text-white'
+                      : 'text-gray-300 hover:bg-sidebar-light'
+                  }`}
+                >
+                  <div className="flex items-center space-x-3">
+                    <Inbox className="h-4 w-4" />
+                    <span className="font-medium">Hub Inbox</span>
+                  </div>
+                  {notifications > 0 && (
+                    <span className="bg-red-500 text-white text-xs px-2 py-0.5 rounded-full font-semibold">
+                      {notifications}
+                    </span>
+                  )}
                 </button>
 
                 <button
                   onClick={() => setCurrentView('mappings')}
-                  className={`w-full flex items-center space-x-3 px-4 py-3 rounded-lg transition-colors ${
+                  className={`w-full flex items-center space-x-3 px-4 py-2 rounded-lg transition-colors text-sm ${
                     currentView === 'mappings'
-                      ? 'bg-qbil-blue text-white'
+                      ? 'bg-sidebar-light text-white'
                       : 'text-gray-300 hover:bg-sidebar-light'
                   }`}
                 >
-                  <Table2 className="h-5 w-5" />
+                  <Table2 className="h-4 w-4" />
                   <span className="font-medium">Mapping Tables</span>
                 </button>
-              </>
+              </div>
             )}
           </div>
         </nav>
@@ -142,11 +147,9 @@ const Navigation = ({
                 <Menu className="h-6 w-6" />
               </button>
               <h1 className="text-xl font-semibold text-gray-800">
-                {currentView === 'dashboard' && 'Dashboard'}
-                {currentView === 'inbox' && 'Hub Inbox'}
-                {currentView === 'send' && 'Send Document'}
-                {currentView === 'partners' && 'Trading Partners'}
-                {currentView === 'mappings' && 'Mapping Tables'}
+                {currentView === 'dashboard' && 'Qbil Hub - Dashboard'}
+                {currentView === 'inbox' && 'Qbil Hub - Inbox'}
+                {currentView === 'mappings' && 'Qbil Hub - Mapping Tables'}
               </h1>
             </div>
             <div className="flex items-center space-x-4">

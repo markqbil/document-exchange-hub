@@ -4,12 +4,8 @@ import './App.css';
 // Import components
 import Dashboard from './components/Dashboard';
 import HubInbox from './components/HubInbox';
-import SendDocument from './components/SendDocument';
-import TradingPartners from './components/TradingPartners';
 import MappingTables from './components/MappingTables';
 import Navigation from './components/Navigation';
-import ConnectionModal from './components/ConnectionModal';
-import SendViaHubModal from './components/SendViaHubModal';
 import ProcessDocumentModal from './components/ProcessDocumentModal';
 
 // Mock Data
@@ -84,11 +80,7 @@ function App() {
   const [selectedDocument, setSelectedDocument] = useState(null);
   const [isAdmin, setIsAdmin] = useState(true);
   const [notifications, setNotifications] = useState(3);
-  const [showConnectionModal, setShowConnectionModal] = useState(false);
-  const [showSendModal, setShowSendModal] = useState(false);
   const [showProcessModal, setShowProcessModal] = useState(false);
-  const [selectedCompany, setSelectedCompany] = useState(null);
-  const [selectedUsers, setSelectedUsers] = useState([]);
   const [searchTerm, setSearchTerm] = useState('');
   const [filterStatus, setFilterStatus] = useState('all');
   const [mappingData, setMappingData] = useState(mockMappings);
@@ -98,11 +90,7 @@ function App() {
     selectedDocument, setSelectedDocument,
     isAdmin, setIsAdmin,
     notifications, setNotifications,
-    showConnectionModal, setShowConnectionModal,
-    showSendModal, setShowSendModal,
     showProcessModal, setShowProcessModal,
-    selectedCompany, setSelectedCompany,
-    selectedUsers, setSelectedUsers,
     searchTerm, setSearchTerm,
     filterStatus, setFilterStatus,
     mappingData, setMappingData
@@ -115,15 +103,11 @@ function App() {
           <div className="p-6">
             {currentView === 'dashboard' && <Dashboard {...appState} />}
             {currentView === 'inbox' && <HubInbox {...appState} />}
-            {currentView === 'send' && <SendDocument {...appState} />}
-            {currentView === 'partners' && isAdmin && <TradingPartners {...appState} />}
-            {currentView === 'mappings' && isAdmin && <MappingTables {...appState} />}
+            {currentView === 'mappings' && <MappingTables {...appState} />}
           </div>
         </div>
       </Navigation>
 
-      {showConnectionModal && <ConnectionModal {...appState} />}
-      {showSendModal && <SendViaHubModal {...appState} />}
       {showProcessModal && <ProcessDocumentModal {...appState} />}
     </div>
   );
