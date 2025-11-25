@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Link, Inbox, Send, Brain, CheckCircle2, X, ChevronRight, Calendar, User, FileText } from 'lucide-react';
+import { Link, Inbox, Send, Brain, CheckCircle2, X, ChevronRight } from 'lucide-react';
 
 const Dashboard = ({ setCurrentView }) => {
   const [selectedMetric, setSelectedMetric] = useState(null);

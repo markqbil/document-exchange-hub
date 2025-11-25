@@ -1,28 +1,94 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   Search, Plus, Edit, Trash2, CheckCircle2, AlertCircle, Brain,
-  TrendingUp, Download, Save, X
+  TrendingUp, Download, Save, X, Users, Package, Ruler, Box, CreditCard, Truck
 } from 'lucide-react';
+import {
+  mappingsApi,
+  addressesApi,
+  productsApi,
+  unitsApi,
+  packagingApi,
+  paymentTermsApi,
+  deliveryTermsApi
+} from '../services/qbilApi';
 
-function MappingTables({ mappingData, setMappingData }) {
+function MappingTables() {
+  const [mappingData, setMappingData] = useState([]);
+  const [partners, setPartners] = useState([]);
+  const [products, setProducts] = useState([]);
+  const [units, setUnits] = useState([]);
+  const [packaging, setPackaging] = useState([]);
+  const [paymentTerms, setPaymentTerms] = useState([]);
+  const [deliveryTerms, setDeliveryTerms] = useState([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [filterConfidence, setFilterConfidence] = useState('all');
+  const [filterPartner, setFilterPartner] = useState('all');
+  const [filterType, setFilterType] = useState('product'); // New: filter by mapping type
   const [editingId, setEditingId] = useState(null);
   const [editForm, setEditForm] = useState({});
+  const [showProductDropdown, setShowProductDropdown] = useState(false);
+  const [productSearch, setProductSearch] = useState('');
+
+  // Fetch all root data types and mappings from API on component mount
+  useEffect(() => {
+    const fetchData = async () => {
+      try {
+        setIsLoading(true);
+        const [
+          mappingsResponse,
+          partnersResponse,
+          productsResponse,
+          unitsResponse,
+          packagingResponse,
+          paymentTermsResponse,
+          deliveryTermsResponse
+        ] = await Promise.all([
+          mappingsApi.getMappings({ mappingType: filterType }), // Filter by type
+          addressesApi.getAddresses(),
+          productsApi.getProducts({ active: true }),
+          unitsApi.getUnits({ active: true }),
+          packagingApi.getPackaging({ active: true }),
+          paymentTermsApi.getPaymentTerms({ active: true }),
+          deliveryTermsApi.getDeliveryTerms({ active: true })
+        ]);
+        setMappingData(mappingsResponse.data);
+        setPartners(partnersResponse.data);
+        setProducts(productsResponse.data);
+        setUnits(unitsResponse.data);
+        setPackaging(packagingResponse.data);
+        setPaymentTerms(paymentTermsResponse.data);
+        setDeliveryTerms(deliveryTermsResponse.data);
+        setError(null);
+      } catch (err) {
+        console.error('Failed to fetch data:', err);
+        setError(err.message);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    fetchData();
+  }, [filterType]); // Re-fetch when filter type changes
 
   const filteredMappings = mappingData.filter(mapping => {
     const matchesSearch =
       mapping.theirCode.toLowerCase().includes(searchTerm.toLowerCase()) ||
       mapping.theirDescription.toLowerCase().includes(searchTerm.toLowerCase()) ||
       mapping.ourCode.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      mapping.ourDescription.toLowerCase().includes(searchTerm.toLowerCase());
+      mapping.ourDescription.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      mapping.partnerName.toLowerCase().includes(searchTerm.toLowerCase());
 
-    let matchesFilter = true;
-    if (filterConfidence === 'high') matchesFilter = mapping.confidence >= 90;
-    else if (filterConfidence === 'medium') matchesFilter = mapping.confidence >= 70 && mapping.confidence < 90;
-    else if (filterConfidence === 'low') matchesFilter = mapping.confidence < 70;
+    const matchesPartner = filterPartner === 'all' || mapping.partnerId === parseInt(filterPartner);
 
-    return matchesSearch && matchesFilter;
+    let matchesConfidence = true;
+    if (filterConfidence === 'high') matchesConfidence = mapping.confidence >= 90;
+    else if (filterConfidence === 'medium') matchesConfidence = mapping.confidence >= 70 && mapping.confidence < 90;
+    else if (filterConfidence === 'low') matchesConfidence = mapping.confidence < 70;
+
+    return matchesSearch && matchesPartner && matchesConfidence;
   });
 
   const getConfidenceColor = (confidence) => {
@@ -41,10 +107,16 @@ function MappingTables({ mappingData, setMappingData }) {
     setEditForm({ ...mapping });
   };
 
-  const handleSave = () => {
-    setMappingData(mappingData.map(m => m.id === editingId ? editForm : m));
-    setEditingId(null);
-    setEditForm({});
+  const handleSave = async () => {
+    try {
+      await mappingsApi.saveMapping(editForm);
+      setMappingData(mappingData.map(m => m.id === editingId ? editForm : m));
+      setEditingId(null);
+      setEditForm({});
+    } catch (err) {
+      console.error('Failed to save mapping:', err);
+      alert('Failed to save mapping: ' + err.message);
+    }
   };
 
   const handleCancel = () => {
@@ -52,17 +124,28 @@ function MappingTables({ mappingData, setMappingData }) {
     setEditForm({});
   };
 
-  const handleDelete = (id) => {
+  const handleDelete = async (id) => {
     if (window.confirm('Are you sure you want to delete this mapping?')) {
-      setMappingData(mappingData.filter(m => m.id !== id));
+      try {
+        await mappingsApi.deleteMapping(id);
+        setMappingData(mappingData.filter(m => m.id !== id));
+      } catch (err) {
+        console.error('Failed to delete mapping:', err);
+        alert('Failed to delete mapping: ' + err.message);
+      }
     }
   };
 
   const handleAddNew = () => {
     const newMapping = {
       id: Math.max(...mappingData.map(m => m.id), 0) + 1,
+      mappingType: filterType, // Set the type based on current filter
+      partnerId: null,
+      partnerName: '',
+      partnerCode: '',
       theirCode: '',
       theirDescription: '',
+      ourRootDataId: null,
       ourCode: '',
       ourDescription: '',
       confidence: 0,
@@ -72,6 +155,41 @@ function MappingTables({ mappingData, setMappingData }) {
     setEditingId(newMapping.id);
     setEditForm(newMapping);
   };
+
+  const handleRootDataSelect = (item) => {
+    setEditForm({
+      ...editForm,
+      ourRootDataId: item.id,
+      ourCode: item.code,
+      ourDescription: item.description
+    });
+    setShowProductDropdown(false);
+    setProductSearch('');
+  };
+
+  // Keep old name for backwards compatibility but use new implementation
+  const handleProductSelect = handleRootDataSelect;
+
+  // Get the appropriate root data based on filterType
+  const getCurrentRootData = () => {
+    switch (filterType) {
+      case 'product': return products;
+      case 'unit': return units;
+      case 'packaging': return packaging;
+      case 'paymentTerms': return paymentTerms;
+      case 'deliveryTerms': return deliveryTerms;
+      default: return products;
+    }
+  };
+
+  const filteredRootData = getCurrentRootData().filter(item =>
+    productSearch === '' ||
+    item.code.toLowerCase().includes(productSearch.toLowerCase()) ||
+    item.description.toLowerCase().includes(productSearch.toLowerCase())
+  );
+
+  // Keep old name for backwards compatibility
+  const filteredProducts = filteredRootData;
 
   const calculateStats = () => {
     const total = mappingData.length;
@@ -86,8 +204,30 @@ function MappingTables({ mappingData, setMappingData }) {
 
   const stats = calculateStats();
 
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center h-96">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary-600 mx-auto mb-4"></div>
+          <h3 className="text-lg font-medium text-gray-900 mb-2">Loading mappings...</h3>
+          <p className="text-gray-600">Please wait while we fetch your product mappings</p>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="max-w-7xl mx-auto px-4 py-8">
+      {/* Error Message */}
+      {error && (
+        <div className="bg-red-50 border border-red-200 rounded-lg p-4 mb-6">
+          <div className="flex items-center gap-2 text-red-800">
+            <AlertCircle className="w-5 h-5" />
+            <span className="font-medium">Error loading mappings: {error}</span>
+          </div>
+        </div>
+      )}
+
       <div className="mb-6">
         <div className="flex items-center justify-between mb-2">
           <h1 className="text-3xl font-bold text-gray-900">Mapping Tables</h1>
@@ -99,7 +239,68 @@ function MappingTables({ mappingData, setMappingData }) {
             Add Mapping
           </button>
         </div>
-        <p className="text-gray-600">Manage product code mappings and AI learning progress</p>
+        <p className="text-gray-600">Manage root data mappings across all trading partners</p>
+      </div>
+
+      {/* Type Tabs */}
+      <div className="bg-white rounded-lg shadow-sm p-2 mb-6">
+        <div className="flex gap-2">
+          <button
+            onClick={() => setFilterType('product')}
+            className={`flex items-center gap-2 px-4 py-2 rounded-lg transition-colors ${
+              filterType === 'product'
+                ? 'bg-primary-600 text-white'
+                : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+            }`}
+          >
+            <Package className="w-4 h-4" />
+            <span className="font-medium">Products</span>
+          </button>
+          <button
+            onClick={() => setFilterType('unit')}
+            className={`flex items-center gap-2 px-4 py-2 rounded-lg transition-colors ${
+              filterType === 'unit'
+                ? 'bg-primary-600 text-white'
+                : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+            }`}
+          >
+            <Ruler className="w-4 h-4" />
+            <span className="font-medium">Units</span>
+          </button>
+          <button
+            onClick={() => setFilterType('packaging')}
+            className={`flex items-center gap-2 px-4 py-2 rounded-lg transition-colors ${
+              filterType === 'packaging'
+                ? 'bg-primary-600 text-white'
+                : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+            }`}
+          >
+            <Box className="w-4 h-4" />
+            <span className="font-medium">Packaging</span>
+          </button>
+          <button
+            onClick={() => setFilterType('paymentTerms')}
+            className={`flex items-center gap-2 px-4 py-2 rounded-lg transition-colors ${
+              filterType === 'paymentTerms'
+                ? 'bg-primary-600 text-white'
+                : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+            }`}
+          >
+            <CreditCard className="w-4 h-4" />
+            <span className="font-medium">Payment Terms</span>
+          </button>
+          <button
+            onClick={() => setFilterType('deliveryTerms')}
+            className={`flex items-center gap-2 px-4 py-2 rounded-lg transition-colors ${
+              filterType === 'deliveryTerms'
+                ? 'bg-primary-600 text-white'
+                : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+            }`}
+          >
+            <Truck className="w-4 h-4" />
+            <span className="font-medium">Delivery Terms</span>
+          </button>
+        </div>
       </div>
 
       {/* Stats Cards */}
@@ -166,6 +367,16 @@ function MappingTables({ mappingData, setMappingData }) {
           </div>
           <div className="flex gap-2">
             <select
+              value={filterPartner}
+              onChange={(e) => setFilterPartner(e.target.value)}
+              className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+            >
+              <option value="all">All Partners</option>
+              {partners.map(partner => (
+                <option key={partner.id} value={partner.id}>{partner.name}</option>
+              ))}
+            </select>
+            <select
               value={filterConfidence}
               onChange={(e) => setFilterConfidence(e.target.value)}
               className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
@@ -189,6 +400,9 @@ function MappingTables({ mappingData, setMappingData }) {
           <table className="min-w-full divide-y divide-gray-200">
             <thead className="bg-gray-50">
               <tr>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Partner
+                </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                   Their Code
                 </th>
@@ -218,10 +432,30 @@ function MappingTables({ mappingData, setMappingData }) {
                   {editingId === mapping.id ? (
                     <>
                       <td className="px-6 py-4">
+                        <select
+                          value={editForm.partnerId || ''}
+                          onChange={(e) => {
+                            const partner = partners.find(p => p.id === parseInt(e.target.value));
+                            setEditForm({
+                              ...editForm,
+                              partnerId: partner?.id || null,
+                              partnerName: partner?.name || ''
+                            });
+                          }}
+                          className="w-full px-2 py-1 border border-gray-300 rounded focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+                        >
+                          <option value="">Select Partner...</option>
+                          {partners.map(partner => (
+                            <option key={partner.id} value={partner.id}>{partner.name}</option>
+                          ))}
+                        </select>
+                      </td>
+                      <td className="px-6 py-4">
                         <input
                           type="text"
                           value={editForm.theirCode}
                           onChange={(e) => setEditForm({ ...editForm, theirCode: e.target.value })}
+                          placeholder="Partner's product code"
                           className="w-full px-2 py-1 border border-gray-300 rounded focus:ring-2 focus:ring-primary-500 focus:border-transparent"
                         />
                       </td>
@@ -230,24 +464,41 @@ function MappingTables({ mappingData, setMappingData }) {
                           type="text"
                           value={editForm.theirDescription}
                           onChange={(e) => setEditForm({ ...editForm, theirDescription: e.target.value })}
+                          placeholder="Partner's product description"
                           className="w-full px-2 py-1 border border-gray-300 rounded focus:ring-2 focus:ring-primary-500 focus:border-transparent"
                         />
                       </td>
-                      <td className="px-6 py-4">
-                        <input
-                          type="text"
-                          value={editForm.ourCode}
-                          onChange={(e) => setEditForm({ ...editForm, ourCode: e.target.value })}
-                          className="w-full px-2 py-1 border border-gray-300 rounded focus:ring-2 focus:ring-primary-500 focus:border-transparent"
-                        />
-                      </td>
-                      <td className="px-6 py-4">
-                        <input
-                          type="text"
-                          value={editForm.ourDescription}
-                          onChange={(e) => setEditForm({ ...editForm, ourDescription: e.target.value })}
-                          className="w-full px-2 py-1 border border-gray-300 rounded focus:ring-2 focus:ring-primary-500 focus:border-transparent"
-                        />
+                      <td className="px-6 py-4 relative" colSpan="2">
+                        <div className="relative">
+                          <input
+                            type="text"
+                            value={productSearch || editForm.ourDescription}
+                            onChange={(e) => {
+                              setProductSearch(e.target.value);
+                              setShowProductDropdown(true);
+                            }}
+                            onFocus={() => setShowProductDropdown(true)}
+                            placeholder="Search your products..."
+                            className="w-full px-2 py-1 border border-gray-300 rounded focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+                          />
+                          {showProductDropdown && (
+                            <div className="absolute z-10 mt-1 w-full bg-white border border-gray-300 rounded-lg shadow-lg max-h-60 overflow-auto">
+                              {filteredProducts.map(product => (
+                                <div
+                                  key={product.id}
+                                  onClick={() => handleProductSelect(product)}
+                                  className="px-3 py-2 hover:bg-gray-100 cursor-pointer"
+                                >
+                                  <div className="font-medium text-sm">{product.code}</div>
+                                  <div className="text-xs text-gray-600">{product.description}</div>
+                                </div>
+                              ))}
+                              {filteredProducts.length === 0 && (
+                                <div className="px-3 py-2 text-sm text-gray-500">No products found</div>
+                              )}
+                            </div>
+                          )}
+                        </div>
                       </td>
                       <td className="px-6 py-4">
                         <input
@@ -287,6 +538,12 @@ function MappingTables({ mappingData, setMappingData }) {
                     </>
                   ) : (
                     <>
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <div className="flex items-center gap-2">
+                          <Users className="w-4 h-4 text-gray-400" />
+                          <span className="text-sm font-medium text-gray-900">{mapping.partnerName}</span>
+                        </div>
+                      </td>
                       <td className="px-6 py-4 whitespace-nowrap">
                         <div className="text-sm font-medium text-gray-900">{mapping.theirCode}</div>
                       </td>
