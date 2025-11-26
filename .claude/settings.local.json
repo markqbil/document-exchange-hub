@@ -8,7 +8,16 @@
       "Bash(timeout /t 15)",
       "Bash(ping:*)",
       "Bash(git add:*)",
-      "Bash(git commit:*)"
+      "Bash(git commit:*)",
+      "Bash(timeout /t 5)",
+      "Bash(git push:*)",
+      "Bash(netstat:*)",
+      "Bash(findstr:*)",
+      "Bash(taskkill /F /PID 25792)",
+      "Bash(taskkill //F //PID 25792)",
+      "Bash(npm install:*)",
+      "Bash(taskkill //F //PID 28392)",
+      "Bash(taskkill //F //PID 18248)"
     ],
     "deny": [],
     "ask": []

@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import {
   X, CheckCircle2, AlertCircle, ArrowRight, Brain,
-  Package, Edit, Save, Box, Ruler, CreditCard, Truck
+  Package, Edit, Save, FileText, Ruler, Box, CreditCard, Truck
 } from 'lucide-react';
 import {
   mappingsApi,
@@ -13,12 +13,13 @@ import {
 } from '../services/qbilApi';
 import { suggestMapping } from '../services/aiMappingService';
 
-function ProcessDocumentModal({ setShowProcessModal, selectedDocument }) {
+function ProcessDocumentModal({ setShowProcessModal, selectedDocument, setCurrentView }) {
   const [step, setStep] = useState(1); // 1: Review, 2: Map products, 3: Confirm, 4: Success
   const [mappedItems, setMappedItems] = useState([]);
   const [editingIndex, setEditingIndex] = useState(null);
   const [availableMappings, setAvailableMappings] = useState([]);
   const [products, setProducts] = useState([]);
+  const [itemsInitialized, setItemsInitialized] = useState(false);
   const [mappingStats, setMappingStats] = useState({
     products: { total: 0, mapped: 0, confidence: 0 },
     units: { total: 0, mapped: 0, confidence: 0 },
@@ -129,6 +130,8 @@ function ProcessDocumentModal({ setShowProcessModal, selectedDocument }) {
 
   // Initialize with auto-suggestions using AI when data is available
   useEffect(() => {
+    if (itemsInitialized) return; // Don't re-initialize if already done
+
     if (selectedDocument?.items && products.length > 0) {
       const autoMapItems = async () => {
         const mapped = await Promise.all(
@@ -138,6 +141,7 @@ function ProcessDocumentModal({ setShowProcessModal, selectedDocument }) {
               ...item,
               mappedCode: suggestion?.ourCode || '',
               mappedDescription: suggestion?.ourDescription || '',
+              ourRootDataId: suggestion?.ourRootDataId || '',
               confidence: suggestion?.confidence || 0,
               method: suggestion?.method || 'none',
               reasoning: suggestion?.reasoning || '',
@@ -146,6 +150,7 @@ function ProcessDocumentModal({ setShowProcessModal, selectedDocument }) {
           })
         );
         setMappedItems(mapped);
+        setItemsInitialized(true);
       };
 
       autoMapItems();
@@ -155,14 +160,16 @@ function ProcessDocumentModal({ setShowProcessModal, selectedDocument }) {
         ...item,
         mappedCode: '',
         mappedDescription: '',
+        ourRootDataId: '',
         confidence: 0,
         method: 'none',
         reasoning: '',
         manualOverride: false
       }));
       setMappedItems(items);
+      setItemsInitialized(true);
     }
-  }, [selectedDocument, products, availableMappings, suggestMappingForItem]);
+  }, [selectedDocument, products, availableMappings, suggestMappingForItem, itemsInitialized]);
 
   const handleManualEdit = (index, field, value) => {
     const newItems = [...mappedItems];
@@ -188,13 +195,14 @@ function ProcessDocumentModal({ setShowProcessModal, selectedDocument }) {
     setStep(1);
     setMappedItems([]);
     setEditingIndex(null);
+    setItemsInitialized(false);
   };
 
   if (!selectedDocument) {
     return null;
   }
 
-  const allItemsMapped = mappedItems.every(item => item.mappedCode && item.mappedDescription);
+  // Allow empty mappings - user can choose to leave items unmapped
   const highConfidenceItems = mappedItems.filter(item => item.confidence >= 90).length;
   const lowConfidenceItems = mappedItems.filter(item => item.confidence < 70 && item.confidence > 0).length;
   const unmappedItems = mappedItems.filter(item => !item.mappedCode).length;
@@ -437,33 +445,65 @@ function ProcessDocumentModal({ setShowProcessModal, selectedDocument }) {
                         {/* Mapped Product */}
                         {editingIndex === index ? (
                           <div className="bg-gray-50 rounded-lg p-3 space-y-2">
-                            <div>
-                              <label className="text-xs text-gray-600 mb-1 block">Our Product Code:</label>
-                              <input
-                                type="text"
-                                value={item.mappedCode}
-                                onChange={(e) => handleManualEdit(index, 'mappedCode', e.target.value)}
+                            <div onClick={(e) => e.stopPropagation()}>
+                              <label className="text-xs text-gray-600 mb-1 block">Our Product:</label>
+                              <select
+                                value={item.ourRootDataId || ''}
+                                onChange={(e) => {
+                                  e.stopPropagation();
+                                  const newItems = [...mappedItems];
+                                  // Handle both string and number IDs
+                                  const selectedProduct = products.find(p => String(p.id) === String(e.target.value));
+
+                                  if (selectedProduct) {
+                                    newItems[index] = {
+                                      ...newItems[index],
+                                      mappedCode: selectedProduct.code,
+                                      mappedDescription: selectedProduct.description,
+                                      ourRootDataId: selectedProduct.id,
+                                      manualOverride: true,
+                                      confidence: 100
+                                    };
+                                  } else {
+                                    // Empty selection
+                                    newItems[index] = {
+                                      ...newItems[index],
+                                      mappedCode: '',
+                                      mappedDescription: '',
+                                      ourRootDataId: '',
+                                      manualOverride: true,
+                                      confidence: 0
+                                    };
+                                  }
+                                  setMappedItems(newItems);
+                                }}
+                                onClick={(e) => e.stopPropagation()}
+                                onMouseDown={(e) => e.stopPropagation()}
                                 className="w-full px-3 py-2 border border-gray-300 rounded focus:ring-2 focus:ring-primary-500 focus:border-transparent"
-                                placeholder="Enter product code"
-                              />
+                              >
+                                <option value="">-- Leave Empty --</option>
+                                {products.map(product => (
+                                  <option key={product.id} value={product.id}>
+                                    {product.code} - {product.description}
+                                  </option>
+                                ))}
+                              </select>
                             </div>
-                            <div>
-                              <label className="text-xs text-gray-600 mb-1 block">Our Product Description:</label>
-                              <input
-                                type="text"
-                                value={item.mappedDescription}
-                                onChange={(e) => handleManualEdit(index, 'mappedDescription', e.target.value)}
-                                className="w-full px-3 py-2 border border-gray-300 rounded focus:ring-2 focus:ring-primary-500 focus:border-transparent"
-                                placeholder="Enter product description"
-                              />
+                            <div className="flex gap-2">
+                              <button
+                                onClick={() => handleSaveEdit(index)}
+                                className="flex items-center gap-2 px-3 py-1 bg-green-600 text-white rounded hover:bg-green-700 transition-colors text-sm"
+                              >
+                                <Save className="w-4 h-4" />
+                                Save
+                              </button>
+                              <button
+                                onClick={() => setEditingIndex(null)}
+                                className="px-3 py-1 border border-gray-300 text-gray-700 rounded hover:bg-gray-50 transition-colors text-sm"
+                              >
+                                Cancel
+                              </button>
                             </div>
-                            <button
-                              onClick={() => handleSaveEdit(index)}
-                              className="flex items-center gap-2 px-3 py-1 bg-green-600 text-white rounded hover:bg-green-700 transition-colors text-sm"
-                            >
-                              <Save className="w-4 h-4" />
-                              Save
-                            </button>
                           </div>
                         ) : (
                           <div className="bg-primary-50 border border-primary-200 rounded-lg p-3">
@@ -598,13 +638,19 @@ function ProcessDocumentModal({ setShowProcessModal, selectedDocument }) {
               <p className="text-gray-600 mb-6">
                 {selectedDocument.type} #{selectedDocument.number} has been processed and saved
               </p>
-              <div className="bg-gray-50 border border-gray-200 rounded-lg p-4 text-left">
+              <div className="bg-gray-50 border border-gray-200 rounded-lg p-4 text-left mb-6">
                 <h4 className="font-medium text-gray-900 mb-2">Processing Complete</h4>
                 <ul className="space-y-2 text-sm text-gray-600">
                   <li className="flex items-start gap-2">
                     <CheckCircle2 className="w-5 h-5 text-green-500 mt-0.5 flex-shrink-0" />
-                    <span>{mappedItems.length} items successfully mapped</span>
+                    <span>{mappedItems.filter(i => i.mappedCode).length} items successfully mapped</span>
                   </li>
+                  {unmappedItems > 0 && (
+                    <li className="flex items-start gap-2">
+                      <AlertCircle className="w-5 h-5 text-yellow-500 mt-0.5 flex-shrink-0" />
+                      <span>{unmappedItems} items left unmapped</span>
+                    </li>
+                  )}
                   <li className="flex items-start gap-2">
                     <Brain className="w-5 h-5 text-blue-500 mt-0.5 flex-shrink-0" />
                     <span>AI learning updated with your mappings</span>
@@ -614,6 +660,43 @@ function ProcessDocumentModal({ setShowProcessModal, selectedDocument }) {
                     <span>Document saved to your system</span>
                   </li>
                 </ul>
+              </div>
+
+              {/* Warning for mandatory fields if items are unmapped */}
+              {unmappedItems > 0 && (
+                <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4 mb-6 text-left">
+                  <div className="flex items-start gap-3">
+                    <AlertCircle className="w-5 h-5 text-yellow-600 mt-0.5 flex-shrink-0" />
+                    <div>
+                      <h4 className="font-semibold text-yellow-900 mb-1">Action Required</h4>
+                      <p className="text-sm text-yellow-800">
+                        Some items were not mapped. Please review the contract and complete any mandatory fields before finalizing.
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Navigation Buttons */}
+              <div className="flex gap-3 justify-center">
+                <button
+                  onClick={() => {
+                    setShowProcessModal(false);
+                    if (setCurrentView) {
+                      setCurrentView('contracts');
+                    }
+                  }}
+                  className="flex items-center gap-2 px-6 py-3 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors"
+                >
+                  <FileText className="w-5 h-5" />
+                  {unmappedItems > 0 ? 'Go to Contract (Complete Required Fields)' : 'View Contract'}
+                </button>
+                <button
+                  onClick={() => setShowProcessModal(false)}
+                  className="px-6 py-3 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors"
+                >
+                  Close
+                </button>
               </div>
             </div>
           )}
@@ -647,12 +730,7 @@ function ProcessDocumentModal({ setShowProcessModal, selectedDocument }) {
               </button>
               <button
                 onClick={() => setStep(3)}
-                disabled={!allItemsMapped}
-                className={`px-6 py-2 rounded-lg transition-colors ${
-                  allItemsMapped
-                    ? 'bg-primary-600 text-white hover:bg-primary-700'
-                    : 'bg-gray-300 text-gray-500 cursor-not-allowed'
-                }`}
+                className="px-6 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors"
               >
                 Review & Confirm
               </button>
@@ -676,12 +754,7 @@ function ProcessDocumentModal({ setShowProcessModal, selectedDocument }) {
             </>
           )}
           {step === 4 && (
-            <button
-              onClick={handleClose}
-              className="px-6 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors"
-            >
-              Done
-            </button>
+            <div></div>
           )}
         </div>
       </div>
